@@ -1,7 +1,6 @@
 import { Constants } from './constants';
 import { CaptchaDataFromRequest } from './interface';
 import { YesCaptchaSolver } from './providers/yescaptcha';
-import { Utils } from './utils';
 
 let yesCaptchaClient: YesCaptchaSolver | null = null;
 

@@ -4,11 +4,24 @@ import { ClientQuest } from './client';
 import type {
 	AllQuestsResponse,
 	CaptchaDataFromRequest,
-	QuestTaskConfigType,
 } from './interface';
+import { QuestTaskConfigType } from './interface';
 import { Quest } from './quest';
 import { Utils } from './utils';
 import { buildConnector, Client } from 'undici';
+
+// Keep this list in sync with the quest handlers in `doingQuest`.
+// Unsupported task types are skipped gracefully to avoid runtime crashes.
+const SUPPORTED_QUEST_TASK_TYPES: QuestTaskConfigType[] = [
+	QuestTaskConfigType.WATCH_VIDEO,
+	QuestTaskConfigType.PLAY_ON_DESKTOP,
+	QuestTaskConfigType.PLAY_ON_XBOX,
+	QuestTaskConfigType.PLAY_ON_PLAYSTATION,
+	QuestTaskConfigType.STREAM_ON_DESKTOP,
+	QuestTaskConfigType.PLAY_ACTIVITY,
+	QuestTaskConfigType.WATCH_VIDEO_ON_MOBILE,
+	QuestTaskConfigType.ACHIEVEMENT_IN_ACTIVITY,
+];
 
 export class QuestManager implements Iterable<Quest> {
 	private readonly quests = new Map<string, Quest>();
@@ -220,27 +233,37 @@ export class QuestManager implements Iterable<Quest> {
 					].join(':'),
 				}),
 			});
-			const res = (await this.client.rest.post(
-				`/quests/${quest.id}/claim-reward`,
-				{
-					body: {
-						platform: quest.raw.config.rewards_config.platforms[0],
-						location: 11, // QUEST_HOME_DESKTOP | https://docs.discord.food/resources/quests#quest-content-type
-						is_targeted: false,
-						metadata_raw: null,
-						metadata_sealed: null,
-						traffic_metadata_raw: quest.raw.traffic_metadata_raw,
-						traffic_metadata_sealed:
-							quest.raw.traffic_metadata_sealed,
+			try {
+				const res = (await this.client.rest.post(
+					`/quests/${quest.id}/claim-reward`,
+					{
+						body: {
+							platform: quest.raw.config.rewards_config.platforms[0],
+							location: 11, // QUEST_HOME_DESKTOP | https://docs.discord.food/resources/quests#quest-content-type
+							is_targeted: false,
+							metadata_raw: null,
+							metadata_sealed: null,
+							traffic_metadata_raw: quest.raw.traffic_metadata_raw,
+							traffic_metadata_sealed:
+								quest.raw.traffic_metadata_sealed,
+						},
+						headers: captchaHeaders,
+						dispatcher: agent,
 					},
-					headers: captchaHeaders,
-					dispatcher: agent,
-				},
-			)) as any;
-			console.log(
-				`Claimed rewards for quest "${quest.config.messages.quest_name}"!`,
-			);
-			quest.updateUserStatus(res);
+				)) as any;
+				console.log(
+					`Claimed rewards for quest "${quest.config.messages.quest_name}"!`,
+				);
+				quest.updateUserStatus(res);
+			} finally {
+				await agent.close().catch((closeErr) => {
+					const message =
+						closeErr instanceof Error
+							? closeErr.message
+							: String(closeErr);
+					console.warn('Failed to close reward claim client:', message);
+				});
+			}
 		} catch (err: any) {
 			const rawError = err.rawError as CaptchaDataFromRequest;
 			if (rawError['captcha_key'] && rawError['captcha_sitekey']) {
@@ -267,6 +290,15 @@ export class QuestManager implements Iterable<Quest> {
 		}
 	}
 
+	private getQuestTaskName(quest: Quest): QuestTaskConfigType | null {
+		const taskConfig = quest.config.task_config_v2;
+		return (
+			SUPPORTED_QUEST_TASK_TYPES.find(
+				(taskType) => taskConfig.tasks[taskType] != null,
+			) ?? null
+		);
+	}
+
 	async doingQuest(quest: Quest) {
 		const questName = quest.config.messages.quest_name;
 		const isAndroid =
@@ -290,18 +322,13 @@ export class QuestManager implements Iterable<Quest> {
 		}
 		const applicationName = quest.config.application.name;
 		const taskConfig = quest.config.task_config_v2;
-		const taskName = [
-			'WATCH_VIDEO',
-			'PLAY_ON_DESKTOP',
-			'PLAY_ON_XBOX',
-			'PLAY_ON_PLAYSTATION',
-			'STREAM_ON_DESKTOP',
-			'PLAY_ACTIVITY',
-			'WATCH_VIDEO_ON_MOBILE',
-			'ACHIEVEMENT_IN_ACTIVITY',
-		].find(
-			(x) => taskConfig.tasks[x as QuestTaskConfigType] != null,
-		) as QuestTaskConfigType;
+		const taskName = this.getQuestTaskName(quest);
+		if (!taskName) {
+			console.log(
+				`No supported task type found for quest "${questName}". Skipping.`,
+			);
+			return;
+		}
 		const secondsNeeded = taskConfig.tasks[taskName].target;
 		let secondsDone = quest.userStatus?.progress?.[taskName]?.value ?? 0;
 		switch (taskName) {
@@ -367,14 +394,21 @@ export class QuestManager implements Iterable<Quest> {
 		const maxFuture = 10,
 			speed = 7,
 			interval = 7;
-		const enrolledAt = new Date(
-			quest.userStatus?.enrolled_at as any,
-		).getTime();
+		const enrolledAtMs = quest.userStatus?.enrolled_at
+			? new Date(quest.userStatus.enrolled_at).getTime()
+			: Date.now();
+		let safeEnrolledAt = enrolledAtMs;
+		if (!Number.isFinite(safeEnrolledAt)) {
+			safeEnrolledAt = Date.now();
+			console.warn(
+				`Quest "${questName}" has invalid enrolled_at value. Falling back to current time.`,
+			);
+		}
 		let completed = false;
 		let fn = async () => {
 			while (true) {
 				const maxAllowed =
-					Math.floor((Date.now() - enrolledAt) / 1000) + maxFuture;
+					Math.floor((Date.now() - safeEnrolledAt) / 1000) + maxFuture;
 				const diff = maxAllowed - secondsDone;
 				const timestamp = secondsDone + speed;
 				if (diff >= speed) {

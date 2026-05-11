@@ -1,6 +1,5 @@
 import { GatewayDispatchEvents } from 'discord-api-types/v10';
 import { ClientQuest } from './src/client';
-import { Utils } from './src/utils';
 
 let currentUserId: string | null = null;
 
@@ -27,13 +26,20 @@ client.once(GatewayDispatchEvents.Ready, async ({ data, api }) => {
 	} else {
 		console.log(`Logged in as @${data.user.username}`);
 	}
-
-	await client.fetchQuests(false);
-	const questsValid = client.questManager!.filterQuestsValidToDo();
-	console.log(`Found ${questsValid.length} valid quests to do.`);
-	await Promise.allSettled(
-		questsValid.map((quest) => client.questManager!.doingQuest(quest)),
-	);
+	try {
+		await client.fetchQuests(false);
+		const questsValid = client.questManager!.filterQuestsValidToDo();
+		console.log(`Found ${questsValid.length} valid quests to do.`);
+		await Promise.allSettled(
+			questsValid.map((quest) => client.questManager!.doingQuest(quest)),
+		);
+	} catch (error) {
+		const errorMessage = `Failed to process quests: ${
+			error instanceof Error ? error.message : String(error)
+		}`;
+		console.error(errorMessage);
+		client.sendWebhookMessage(errorMessage);
+	}
 
 	// ! Redeem rewards for completed quests
 	// Todo: Cache quests
@@ -51,7 +57,7 @@ client.once(GatewayDispatchEvents.Ready, async ({ data, api }) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-	console.error('[Error:] Unhandled Rejection');
+	console.error('[Error:] Unhandled Rejection', reason);
 });
 
 process.on('uncaughtException', (error) => {
