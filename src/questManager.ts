@@ -284,7 +284,11 @@ export class QuestManager implements Iterable<Quest> {
 
 	private getQuestTaskName(quest: Quest): QuestTaskConfigType | null {
 		const taskConfig = quest.config.task_config_v2;
-		return SUPPORTED_QUEST_TASK_TYPES.find((x) => taskConfig.tasks[x] != null) ?? null;
+		return (
+			SUPPORTED_QUEST_TASK_TYPES.find(
+				(taskType) => taskConfig.tasks[taskType] != null,
+			) ?? null
+		);
 	}
 
 	async doingQuest(quest: Quest) {
@@ -311,7 +315,7 @@ export class QuestManager implements Iterable<Quest> {
 		const applicationName = quest.config.application.name;
 		const taskConfig = quest.config.task_config_v2;
 		const taskName = this.getQuestTaskName(quest);
-		if (!taskName || !taskConfig.tasks[taskName]) {
+		if (!taskName) {
 			console.log(
 				`No supported task type found for quest "${questName}". Skipping.`,
 			);
