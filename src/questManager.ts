@@ -4,11 +4,22 @@ import { ClientQuest } from './client';
 import type {
 	AllQuestsResponse,
 	CaptchaDataFromRequest,
-	QuestTaskConfigType,
 } from './interface';
+import { QuestTaskConfigType } from './interface';
 import { Quest } from './quest';
 import { Utils } from './utils';
 import { buildConnector, Client } from 'undici';
+
+const SUPPORTED_QUEST_TASK_TYPES: QuestTaskConfigType[] = [
+	QuestTaskConfigType.WATCH_VIDEO,
+	QuestTaskConfigType.PLAY_ON_DESKTOP,
+	QuestTaskConfigType.PLAY_ON_XBOX,
+	QuestTaskConfigType.PLAY_ON_PLAYSTATION,
+	QuestTaskConfigType.STREAM_ON_DESKTOP,
+	QuestTaskConfigType.PLAY_ACTIVITY,
+	QuestTaskConfigType.WATCH_VIDEO_ON_MOBILE,
+	QuestTaskConfigType.ACHIEVEMENT_IN_ACTIVITY,
+];
 
 export class QuestManager implements Iterable<Quest> {
 	private readonly quests = new Map<string, Quest>();
@@ -274,16 +285,7 @@ export class QuestManager implements Iterable<Quest> {
 	private getQuestTaskName(quest: Quest): QuestTaskConfigType | null {
 		const taskConfig = quest.config.task_config_v2;
 		return (
-			[
-				'WATCH_VIDEO',
-				'PLAY_ON_DESKTOP',
-				'PLAY_ON_XBOX',
-				'PLAY_ON_PLAYSTATION',
-				'STREAM_ON_DESKTOP',
-				'PLAY_ACTIVITY',
-				'WATCH_VIDEO_ON_MOBILE',
-				'ACHIEVEMENT_IN_ACTIVITY',
-			].find((x) => taskConfig.tasks[x as QuestTaskConfigType] != null) ??
+			SUPPORTED_QUEST_TASK_TYPES.find((x) => taskConfig.tasks[x] != null) ??
 			null
 		) as QuestTaskConfigType | null;
 	}
@@ -383,10 +385,12 @@ export class QuestManager implements Iterable<Quest> {
 		const maxFuture = 10,
 			speed = 7,
 			interval = 7;
-		const enrolledAt = quest.userStatus?.enrolled_at
+		const enrolledAtMs = quest.userStatus?.enrolled_at
 			? new Date(quest.userStatus.enrolled_at).getTime()
 			: Date.now();
-		const safeEnrolledAt = Number.isFinite(enrolledAt) ? enrolledAt : Date.now();
+		const safeEnrolledAt = Number.isFinite(enrolledAtMs)
+			? enrolledAtMs
+			: Date.now();
 		let completed = false;
 		let fn = async () => {
 			while (true) {
