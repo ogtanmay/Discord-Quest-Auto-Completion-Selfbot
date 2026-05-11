@@ -10,6 +10,8 @@ import { Quest } from './quest';
 import { Utils } from './utils';
 import { buildConnector, Client } from 'undici';
 
+// Keep this list in sync with the quest handlers in `doingQuest`.
+// Unsupported task types are skipped gracefully to avoid runtime crashes.
 const SUPPORTED_QUEST_TASK_TYPES: QuestTaskConfigType[] = [
 	QuestTaskConfigType.WATCH_VIDEO,
 	QuestTaskConfigType.PLAY_ON_DESKTOP,
@@ -254,7 +256,13 @@ export class QuestManager implements Iterable<Quest> {
 				);
 				quest.updateUserStatus(res);
 			} finally {
-				void agent.close();
+				await agent.close().catch((closeErr) => {
+					const message =
+						closeErr instanceof Error
+							? closeErr.message
+							: String(closeErr);
+					console.warn('Failed to close reward claim client:', message);
+				});
 			}
 		} catch (err: any) {
 			const rawError = err.rawError as CaptchaDataFromRequest;
@@ -389,9 +397,12 @@ export class QuestManager implements Iterable<Quest> {
 		const enrolledAtMs = quest.userStatus?.enrolled_at
 			? new Date(quest.userStatus.enrolled_at).getTime()
 			: Date.now();
-		const safeEnrolledAt = Number.isFinite(enrolledAtMs)
-			? enrolledAtMs
-			: Date.now();
+		const safeEnrolledAt = Number.isFinite(enrolledAtMs) ? enrolledAtMs : Date.now();
+		if (!Number.isFinite(enrolledAtMs)) {
+			console.warn(
+				`Quest "${questName}" has invalid enrolled_at value. Falling back to current time.`,
+			);
+		}
 		let completed = false;
 		let fn = async () => {
 			while (true) {
