@@ -34,11 +34,11 @@ client.once(GatewayDispatchEvents.Ready, async ({ data, api }) => {
 			questsValid.map((quest) => client.questManager!.doingQuest(quest)),
 		);
 	} catch (error) {
-		const formattedMessage = `Failed to process quests: ${
+		const errorMessage = `Failed to process quests: ${
 			error instanceof Error ? error.message : String(error)
 		}`;
-		console.error(formattedMessage);
-		client.sendWebhookMessage(formattedMessage);
+		console.error(errorMessage);
+		client.sendWebhookMessage(errorMessage);
 	}
 
 	// ! Redeem rewards for completed quests

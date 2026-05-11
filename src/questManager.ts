@@ -397,8 +397,9 @@ export class QuestManager implements Iterable<Quest> {
 		const enrolledAtMs = quest.userStatus?.enrolled_at
 			? new Date(quest.userStatus.enrolled_at).getTime()
 			: Date.now();
-		const safeEnrolledAt = Number.isFinite(enrolledAtMs) ? enrolledAtMs : Date.now();
-		if (!Number.isFinite(enrolledAtMs)) {
+		let safeEnrolledAt = enrolledAtMs;
+		if (!Number.isFinite(safeEnrolledAt)) {
+			safeEnrolledAt = Date.now();
 			console.warn(
 				`Quest "${questName}" has invalid enrolled_at value. Falling back to current time.`,
 			);
