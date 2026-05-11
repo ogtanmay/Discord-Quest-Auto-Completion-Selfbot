@@ -284,10 +284,7 @@ export class QuestManager implements Iterable<Quest> {
 
 	private getQuestTaskName(quest: Quest): QuestTaskConfigType | null {
 		const taskConfig = quest.config.task_config_v2;
-		return (
-			SUPPORTED_QUEST_TASK_TYPES.find((x) => taskConfig.tasks[x] != null) ??
-			null
-		) as QuestTaskConfigType | null;
+		return SUPPORTED_QUEST_TASK_TYPES.find((x) => taskConfig.tasks[x] != null) ?? null;
 	}
 
 	async doingQuest(quest: Quest) {

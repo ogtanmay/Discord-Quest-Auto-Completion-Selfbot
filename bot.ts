@@ -35,8 +35,9 @@ client.once(GatewayDispatchEvents.Ready, async ({ data, api }) => {
 		);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		console.error('Failed to process quests:', message);
-		client.sendWebhookMessage(`Failed to process quests: ${message}`);
+		const formattedMessage = `Failed to process quests: ${message}`;
+		console.error(formattedMessage);
+		client.sendWebhookMessage(formattedMessage);
 	}
 
 	// ! Redeem rewards for completed quests
