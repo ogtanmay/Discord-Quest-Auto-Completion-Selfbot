@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@discordjs/core": "2.4.0",
-    "@discordjs/rest": "2.6.0",
+    "@discordjs/rest": "^2.6.1",
     "@discordjs/ws": "2.0.4",
     "undici": "^6.24.1"
   }
